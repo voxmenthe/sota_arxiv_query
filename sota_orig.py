@@ -140,11 +140,8 @@ def has_number(sent):
 def contains_sota(sent):
     return 'state-of-the-art' in sent or 'state of the art' in sent or 'SOTA' in sent
 
-def contains_filter(term, sent):
-    return term in sent or term[:-1] in sent or term[:-2] in sent or term[:-3] in sent
 
-
-def extract_line(abstract, keyword, limit, term):
+def extract_line(abstract, keyword, limit):
     lines = []
     numbered_lines = []
     kw_mentioned = False
@@ -157,9 +154,6 @@ def extract_line(abstract, keyword, limit, term):
             if has_number(sent):
                 numbered_lines.append(sent)
             elif contains_sota(sent):
-                numbered_lines.append(sent)
-            elif term and contains_filter(term, sent):
-                print("Using extra search term: ",term)
                 numbered_lines.append(sent)
             else:
                 kw_sentences.append(sent)
@@ -178,19 +172,19 @@ def extract_line(abstract, keyword, limit, term):
     return '. '.join(lines[-2:]), False
 
 
-def get_report(paper, keyword, term):
+def get_report(paper, keyword):
     if keyword in paper['abstract'].lower():
         title = h.unescape(paper['title'])
         headline = '{} ({} - {})\n'.format(title, paper['authors'][0], paper['date'])
         abstract = h.unescape(paper['abstract'])
-        extract, has_number = extract_line(abstract, keyword, 280 - len(headline),term=term)
+        extract, has_number = extract_line(abstract, keyword, 280 - len(headline))
         if extract:
             report = headline + extract + '\nLink: {}'.format(paper['main_page'])
             return report, has_number
     return '', False
 
 
-def txt2reports(txt, keyword, num_to_show, term):
+def txt2reports(txt, keyword, num_to_show):
     found = False
     txt = ''.join(chr(c) for c in txt)
     lines = txt.split('\n')
@@ -207,7 +201,7 @@ def txt2reports(txt, keyword, num_to_show, term):
         if line == '<li class="arxiv-result">':
             found = True
             paper, i = get_next_result(lines, i)
-            report, has_number = get_report(paper, keyword, term=term)
+            report, has_number = get_report(paper, keyword)
 
             if has_number:
                 print(report.encode('utf-8'))
@@ -220,7 +214,7 @@ def txt2reports(txt, keyword, num_to_show, term):
     return unshown, num_to_show, found
 
 
-def get_papers(keyword, num_results=5, per_page=200, term=None):
+def get_papers(keyword, num_results=5):
     """
     If keyword is an English word, then search in CS category only to avoid papers from other categories, resulted from the ambiguity
     """
@@ -237,7 +231,7 @@ def get_papers(keyword, num_results=5, per_page=200, term=None):
             query_temp = 'https://arxiv.org/search/?searchtype=all&query={}&abstracts=show&size={}&order=-announced_date_first&start={}'
     keyword_q = keyword.replace(' ', '+')
     page = 0
-
+    per_page = 200
     num_to_show = num_results
     all_unshown = []
 
@@ -252,14 +246,14 @@ def get_papers(keyword, num_results=5, per_page=200, term=None):
             return
 
         txt = response.read()
-        unshown, num_to_show, found = txt2reports(txt, keyword, num_to_show, term=term)
+        unshown, num_to_show, found = txt2reports(txt, keyword, num_to_show)
         if not found and not all_unshown and num_to_show == num_results:
             print('Sorry, we were unable to find any abstract with the word {}'.format(keyword))
             return
 
         if num_to_show < num_results / 2 or not found:
             for report in all_unshown[:num_to_show]:
-                print(report.encode('utf-8'))
+                print(report.encode('utf-8'))                
                 print('====================================================')
             if not found:
                 return
@@ -268,7 +262,7 @@ def get_papers(keyword, num_results=5, per_page=200, term=None):
             all_unshown.extend(unshown)
         page += 1
 
-def main(per_page=200):
+def main():
     if len(sys.argv) < 2:
         raise ValueError('You must specify a keyword')
     if len(sys.argv) > 3:
@@ -288,26 +282,7 @@ def main(per_page=200):
     else:
         num_results = 5
 
-    if len(sys.argv) == 4:
-        term=str(sys.argv[3])
-        get_papers(keyword, num_results, per_page, term=term)
-
-    else:
-        get_papers(keyword, num_results, per_page, term=None)
-
+    get_papers(keyword, num_results)
 
 if __name__ == '__main__':
     main()
-
-
-"""
-USAGE
-
-To query for a certain keyword, run:
-
-$ python3 sotawhat.py "[keyword]" [number of results]
-For example:
-
-$ python3 sotawhat.py "perplexity" 10
-
-"""
